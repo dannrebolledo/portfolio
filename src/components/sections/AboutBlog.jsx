@@ -37,20 +37,18 @@ const DEFAULT_POSTS = [
   },
 ]
 
-async function askClaude(messages, apiKey) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+async function askGroq(messages) {
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-allow-browser': 'true',
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 512,
-      system: SYSTEM_PROMPT,
-      messages,
+      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
     }),
   })
   if (!res.ok) {
@@ -58,16 +56,15 @@ async function askClaude(messages, apiKey) {
     throw new Error(err.error?.message || `API error ${res.status}`)
   }
   const data = await res.json()
-  return data.content[0].text
+  return data.choices[0].message.content
 }
 
-function Chat({ apiKey, onSetApiKey, isAdmin }) {
+function Chat({ isAdmin }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Hi! I\'m Daniel\'s AI assistant. Ask me anything about his background, projects, or thoughts on People Analytics.' },
   ])
   const [input, setInput]     = useState('')
   const [loading, setLoading] = useState(false)
-  const [apiInput, setApiInput] = useState('')
   const scrollRef = useRef(null)
 
   useEffect(() => {
@@ -84,42 +81,13 @@ function Chat({ apiKey, onSetApiKey, isAdmin }) {
     setMessages(prev => [...prev, userMsg])
     setLoading(true)
     try {
-      const reply = await askClaude([...apiHistory, { role: 'user', content: text }], apiKey)
+      const reply = await askGroq([...apiHistory, { role: 'user', content: text }])
       setMessages(prev => [...prev, { role: 'assistant', text: reply }])
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', text: `⚠ ${err.message}` }])
     } finally {
       setLoading(false)
     }
-  }
-
-  if (!apiKey) {
-    return (
-      <div className="chat-api-prompt">
-        <p style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🤖</p>
-        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: '0.35rem' }}>
-          AI Chat
-        </p>
-        <p>Enter your Anthropic API key to chat with Daniel's AI assistant.</p>
-        {isAdmin ? (
-          <div className="chat-api-setup">
-            <input
-              className="input"
-              type="password"
-              placeholder="sk-ant-..."
-              value={apiInput}
-              onChange={e => setApiInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && onSetApiKey(apiInput.trim())}
-            />
-            <button className="btn btn-primary" onClick={() => onSetApiKey(apiInput.trim())} disabled={!apiInput.trim()}>
-              Save API Key
-            </button>
-          </div>
-        ) : (
-          <p style={{ marginTop: '0.5rem', fontSize: '0.78rem' }}>Log in as admin to configure the API key.</p>
-        )}
-      </div>
-    )
   }
 
   return (
@@ -171,7 +139,6 @@ function Chat({ apiKey, onSetApiKey, isAdmin }) {
 
 export default function AboutBlog({ isAdmin }) {
   const [posts, setPosts]       = useLocalStorage('portfolio_blog_posts', DEFAULT_POSTS)
-  const [apiKey, setApiKey]     = useLocalStorage('portfolio_api_key', '')
   const [editingId, setEditing] = useState(null)
   const [editText, setEditText] = useState('')
 
@@ -262,16 +229,14 @@ export default function AboutBlog({ isAdmin }) {
         <div className="chat-header">
           <div>
             <h3>Chat with Daniel's AI</h3>
-            <p>Powered by Claude — ask about People Analytics, career, projects</p>
+            <p>Powered by Llama 3.3 — ask about People Analytics, career, projects</p>
           </div>
-          {apiKey && (
-            <div className="chat-ai-indicator">
-              <span className="ai-dot" />
-              Claude Sonnet
-            </div>
-          )}
+          <div className="chat-ai-indicator">
+            <span className="ai-dot" />
+            Llama 3.3 · Groq
+          </div>
         </div>
-        <Chat apiKey={apiKey} onSetApiKey={setApiKey} isAdmin={isAdmin} />
+        <Chat isAdmin={isAdmin} />
       </div>
     </div>
   )
